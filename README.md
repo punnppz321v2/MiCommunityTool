@@ -5,7 +5,7 @@
 
 ## For Windows, Linux, MacOS :
 Install Python3,
-Download [MiCommunityTool](https://github.com/offici5l/MiCommunityTool/releases/latest/download/MiCommunityTool.py) and run it
+Download [MiCommunityTool](https://github.com/punnppz321v2/MiCommunityTool/releases/latest/download/MiCommunityTool.py) and run it
 
 ## For Android(termux): 
 ```
