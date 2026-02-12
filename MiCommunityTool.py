@@ -27,12 +27,19 @@ print(f"\n[V{version}] For issues or feedback:\n- GitHub: github.com/offici5l/Mi
 User = "okhttp/4.12.0"
 headers = {"User-Agent": User}
 
+USERNAME = "" # Put your username here
+PASSWORD = "" # Put your password here
+
 def login():
     base_url = "https://account.xiaomi.com"
     sid = "18n_bbs_global"
 
-    user = input('\nEnter user: ')
-    pwd = input('\nEnter pwd: ')
+    if USERNAME and PASSWORD:
+        user = USERNAME
+        pwd = PASSWORD
+    else:
+        user = input('\nEnter user: ')
+        pwd = input('\nEnter pwd: ')
     hash_pwd = hashlib.md5(pwd.encode()).hexdigest().upper()
     cookies = {}
 
@@ -176,13 +183,13 @@ def apply_request():
         print(messages.get(apply_, ""))
         if apply_ == 1:
             state_request()
-        elif apply_ in [4, 5, 6, 7]:
-            exit()
         elif apply_ == 3:
             return 1
+        elif apply_ in [4, 5, 6, 7]:
+            return 0 # Do not exit, just return failure so we can retry
     except Exception as e:
-        exit(f"apply: {e}")
-
+        print(f"apply error: {e}")
+        return 0
 
 def get_ntp_time(servers=["pool.ntp.org", "time.google.com", "time.windows.com"]):
     client = ntplib.NTPClient()
@@ -224,35 +231,79 @@ def measure_latency(url, samples=5):
     trimmed = latencies[trim:-trim] if trim else latencies
     return sum(trimmed)/len(trimmed) * 1.3
 
-def schedule_daily_task():
+def run_once_wait_and_spam():
     beijing_tz = timezone(timedelta(hours=8))
+    local_now = datetime.now()
+    beijing_now = get_beijing_time()
+    
+    print(f"\n[TIME INFO]")
+def run_once_wait_and_spam():
+    while True:
+        try:
+            beijing_now = get_beijing_time()
+            break
+        except Exception as e:
+            print(f"Error getting time: {e}. Retrying...")
+            time.sleep(2)
 
+    local_now = datetime.now()
+    print(f"\n[TIME INFO]")
+    print(f"Local Time: {local_now.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Beijing Time: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Determine next spam window
+    # Spam window is 23:59:59 to 00:00:01 (next day) [2 seconds duration]
+    
+    # Check if we are currently IN the window
+    # Window: Hour is 23 and Minute == 59 and Second >= 59  OR  Hour is 0 and Minute == 0 and Second <= 1
+    in_window = (beijing_now.hour == 23 and beijing_now.minute == 59 and beijing_now.second >= 59) or \
+                (beijing_now.hour == 0 and beijing_now.minute == 0 and beijing_now.second <= 1)
+
+    if in_window:
+        print("Currently inside the spam window (23:59:59 - 00:00:01)! Starting immediately.")
+        target_time = beijing_now
+    else:
+        # Calculate next 23:59:59
+        target_time = beijing_now.replace(hour=23, minute=59, second=59, microsecond=0)
+        if beijing_now >= target_time:
+            # If we are past 23:59:59 today (and not in window means we are past 00:00:01)
+            target_time += timedelta(days=1)
+        
+        diff = target_time - beijing_now
+        print(f"Time until spam start (23:59:59 Beijing): {diff}")
+        
+        # Wait loop
+        while True:
+            now = get_beijing_time()
+            if now >= target_time:
+                break
+            
+            remaining = target_time - now
+            # Only print every second
+            sys.stdout.write(f"\rWaiting... Remaining: {str(remaining).split('.')[0]}   ")
+            sys.stdout.flush()
+            time.sleep(0.5)
+        print("\nStarting spam cycle! (23:59:59 - 00:00:01)")
+
+    # Spam loop
     while True:
         now = get_beijing_time()
-        target = now.replace(hour=23, minute=57, second=0, microsecond=0)
-        if now >= target:
-            target += timedelta(days=1)
+        # Window end is when Hour is 0 and Minute == 0 and Second > 1
+        # Also cover cases where it goes to 00:01 just in case
+        if (now.hour == 0 and now.minute == 0 and now.second > 1) or (now.hour == 0 and now.minute >= 1):
+            print(f"\nTime is {now.strftime('%H:%M:%S')}. Window closed (00:00:01). Exiting.")
+            break
+        
+        # Double check we are not too early (if loop logic above failed slightly)
+        # But if we are here, we should be >= 23:59 or < 00:01
+        
+        print(f"\nSending request... {now.strftime('%H:%M:%S.%f')}")
+        res = apply_request()
+        if res == 1:
+            print("Successfully applied! Exiting.")
+            return
+        
+        # Small delay to prevent being blocked too quickly or CPU burn
+        time.sleep(0.5)
 
-        print(f"\nNext execution at: {target.strftime('%Y-%m-%d %H:%M:%S.%f')} CST")
-        while datetime.now(beijing_tz) < target:
-            time_left = (target - datetime.now(beijing_tz)).total_seconds()
-            if time_left > 300:
-                time.sleep(60)
-            else:
-                precise_sleep(target)
-
-        latency = measure_latency(U_apply)
-        execution_time = target + timedelta(minutes=3) - timedelta(milliseconds=latency)
-
-        print(f"Adjusted execution time: {execution_time.strftime('%H:%M:%S.%f')}")
-        precise_sleep(execution_time)
-
-        result = apply_request()
-        if result == 1:
-            return 1
-
-
-while True:
-    result = schedule_daily_task()
-    if result != 1:
-        break
+run_once_wait_and_spam()
